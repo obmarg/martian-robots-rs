@@ -28,21 +28,23 @@ impl Mission {
             if (ORIGIN.x..=self.upper_right.x).contains(&robot.position.x)
                 && (ORIGIN.y..=self.upper_right.y).contains(&robot.position.y)
             {
+                // moved robot is still on the grid, commit
                 return Ok(robot);
             }
 
-            if let Some(scent) = self.scents.get(&r.position) {
-                if scent.contains(&robot.facing) {
-                    return Ok(r);
+            // moved robot would be off the grid...
+            match self.scents.get(&r.position) {
+                // ...but previous robot has left a scent, so we'll ignore the move
+                Some(scent) if scent.contains(&robot.facing) => return Ok(r),
+                // ...and it's lost, but not before leaving a scent in its wake
+                _ => {
+                    self.scents
+                        .entry(r.position)
+                        .or_insert(HashSet::new())
+                        .insert(r.facing);
+                    Err(r)
                 }
             }
-
-            self.scents
-                .entry(r.position)
-                .or_insert(HashSet::new())
-                .insert(r.facing);
-
-            Err(r)
         })
     }
 }

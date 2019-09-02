@@ -33,7 +33,6 @@ fn main() {
         position: Point { x: 1, y: 1 },
         facing: East,
     };
-
     match mission.dispatch(robot, &[L, F, L, F, L, F, L, F]) {
         Ok(robot) => println!("{}", robot),
         Err(robot) => println!("{} LOST", robot),
@@ -43,7 +42,6 @@ fn main() {
         position: Point { x: 3, y: 2 },
         facing: North,
     };
-
     match mission.dispatch(robot, &[F, R, R, F, L, L, F, F, R, R, F, L, L]) {
         Ok(robot) => println!("{}", robot),
         Err(robot) => println!("{} LOST", robot),
@@ -53,7 +51,6 @@ fn main() {
         position: Point { x: 0, y: 3 },
         facing: West,
     };
-
     match mission.dispatch(robot, &[L, L, F, F, F, L, F, L, F, L]) {
         Ok(robot) => println!("{}", robot),
         Err(robot) => println!("{} LOST", robot),
