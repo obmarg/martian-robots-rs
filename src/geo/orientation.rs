@@ -1,6 +1,6 @@
 use super::location::Point;
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum Orientation {
     North,
     East,

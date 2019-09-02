@@ -1,7 +1,7 @@
 use crate::geo::location;
 use crate::geo::orientation;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub struct Robot {
     pub position: location::Point,
     pub facing: orientation::Orientation,

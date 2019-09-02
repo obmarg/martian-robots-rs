@@ -1,6 +1,6 @@
 use super::orientation::Orientation;
 
-#[derive(Eq, PartialEq, Hash, Debug)]
+#[derive(Eq, PartialEq, PartialOrd, Hash, Copy, Clone, Debug)]
 pub struct Point {
     pub x: i32,
     pub y: i32,
