@@ -1,5 +1,6 @@
 mod geo;
 mod mission;
+mod parser;
 mod robot;
 
 use geo::location::Point;
