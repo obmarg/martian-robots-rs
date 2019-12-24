@@ -109,7 +109,7 @@ where
                 Ok(((_, point), _)) => point,
                 Err(err) => return Err(format!("Expected grid size. {}", err)), // this could be improved
             };
-        } // drop upper_right and therefore release borrow of stream...
+        } // return borrowed stream
 
         Ok(MissionPlan {
             upper_right: upper_right,
