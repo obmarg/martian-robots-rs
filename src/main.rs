@@ -37,15 +37,16 @@ fn main() {
         Ok(plan) => plan,
         Err(msg) => return eprintln!("{}", msg)
     };
-    
+
     let mut mission = Mission::new(plan.upper_right);
 
-    for (robot, commands) in &mut plan {
-        {
-            match mission.dispatch(robot, &commands) {
+    for item in &mut plan {
+        match item {
+            Ok((robot, commands)) => match mission.dispatch(robot, &commands) {
                 Ok(robot) => println!("{}", robot),
                 Err(robot) => println!("{} LOST", robot),
-            }
+            },
+            Err(err) => return eprintln!("{}", err)
         }
     }
 }

@@ -7,7 +7,7 @@ use combine::stream::buffered;
 use combine::stream::position;
 use combine::stream::read;
 use combine::stream::Stream;
-use combine::{skip_many, many1, one_of, Parser};
+use combine::{eof, many1, one_of, skip_many, EasyParser, Parser};
 
 use crate::geo::location::Point;
 use crate::geo::orientation::Orientation;
@@ -100,7 +100,10 @@ where
         let upper_right;
 
         {
-            let point = skip_many(space()).and(point()).skip(spaces()).parse(&mut stream);
+            let point = skip_many(space())
+                .and(point())
+                .skip(spaces())
+                .parse(&mut stream);
 
             upper_right = match point {
                 Ok(((_, point), _)) => point,
@@ -119,15 +122,24 @@ impl<R> Iterator for MissionPlan<'_, R>
 where
     R: Read,
 {
-    type Item = (Robot, Vec<Command>);
+    type Item = Result<(Robot, Vec<Command>), String>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let stream = self.stream.as_mut();
-        let robot = skip_many(space()).and(robot()).parse(stream);
+        let robot = skip_many(space())
+            .and(
+                robot().map(|r| Some(r))
+                .or(eof().map(|()| None)) // an expected end of input
+            )
+            .easy_parse(stream);
 
         match robot {
-            Ok(((_, robot), _)) => Some(robot),
-            _ => None,
+            Ok(((_, None), _)) => None,
+            Ok(((_, Some(robot)), _)) => Some(Ok(robot)),
+            Err(error) => {
+                let human_error = error.map_token(|t| t as char).map_range(|r| std::str::from_utf8(r).unwrap());
+                Some(Err(format!("{}", human_error)))
+            }
         }
     }
 }
@@ -209,12 +221,14 @@ mod tests {
         let mut input = Cursor::new("  31 24\n   1 1 E\nLFLFLFLF\n");
 
         let actual = MissionPlan::read(&mut input).unwrap().next();
-        let expected = Some((
-            Robot {
-                position: Point { x: 1, y: 1 },
-                facing: Orientation::East,
-            },
-            vec![L, F, L, F, L, F, L, F],
+        let expected = Some(Ok(
+            (
+                Robot {
+                    position: Point { x: 1, y: 1 },
+                    facing: Orientation::East,
+                },
+                vec![L, F, L, F, L, F, L, F],
+            )
         ));
 
         assert_eq!(actual, expected)
@@ -226,29 +240,29 @@ mod tests {
             Cursor::new("31 24\n1 1 E\nLFLFLFLF\n\n3 2 N\nFRRFLLFFRRFLL\n\n0 3 W\nLLFFFLFLFL\n");
 
         let plan = MissionPlan::read(&mut input).unwrap();
-        let actual: Vec<(Robot, Vec<Command>)> = plan.collect();
+        let actual: Vec<Result<(Robot, Vec<Command>), String>> = plan.collect();
         let expected = vec![
-            (
+            Ok((
                 Robot {
                     position: Point { x: 1, y: 1 },
                     facing: Orientation::East,
                 },
                 vec![L, F, L, F, L, F, L, F],
-            ),
-            (
+            )),
+            Ok((
                 Robot {
                     position: Point { x: 3, y: 2 },
                     facing: Orientation::North,
                 },
                 vec![F, R, R, F, L, L, F, F, R, R, F, L, L],
-            ),
-            (
+            )),
+            Ok((
                 Robot {
                     position: Point { x: 0, y: 3 },
                     facing: Orientation::West,
                 },
                 vec![L, L, F, F, F, L, F, L, F, L],
-            ),
+            )),
         ];
 
         assert_eq!(actual, expected);
