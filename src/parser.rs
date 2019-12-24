@@ -2,23 +2,22 @@ use std::io::Read;
 use std::str;
 
 use combine::error::ParseError;
-use combine::parser::byte::{digit, spaces};
+use combine::parser::byte::{digit, space, spaces};
 use combine::stream::buffered;
 use combine::stream::position;
 use combine::stream::read;
 use combine::stream::Stream;
-use combine::{many1, one_of, Parser};
+use combine::{skip_many, many1, one_of, Parser};
 
 use crate::geo::location::Point;
 use crate::geo::orientation::Orientation;
-use crate::mission::Mission;
 use crate::robot::{Command, Robot};
 
 pub struct MissionPlan<'a, R>
 where
     R: Read,
 {
-    pub mission: Mission,
+    pub upper_right: Point,
     stream:
         Box<buffered::Stream<position::Stream<read::Stream<&'a mut R>, position::IndexPositioner>>>,
 }
@@ -79,7 +78,7 @@ where
         .and(orientation())
         .skip(spaces()) // spaces covers new lines
         .and(commands())
-        .skip(spaces())
+        .skip(space())
         .map(|((point, orientation), commands)| {
             (
                 Robot {
@@ -95,25 +94,24 @@ impl<R> MissionPlan<'_, R>
 where
     R: Read,
 {
-    pub fn read(input: &mut R) -> MissionPlan<R> {
+    pub fn read(input: &mut R) -> Result<MissionPlan<R>, String> {
         // Should return Result
         let mut stream = buffered::Stream::new(position::Stream::new(read::Stream::new(input)), 1);
-        let mission;
+        let upper_right;
 
         {
-            let mut upper_right = point().skip(spaces());
-            let point = upper_right.parse(&mut stream);
+            let point = skip_many(space()).and(point()).skip(spaces()).parse(&mut stream);
 
-            mission = match point {
-                Ok((point, _)) => Mission::new(point),
-                Err(err) => panic!("Err! {}", err),
+            upper_right = match point {
+                Ok(((_, point), _)) => point,
+                Err(err) => return Err(format!("Expected grid size. {}", err)), // this could be improved
             };
-        } // drop upper_right and therefore release stream
+        } // drop upper_right and therefore release borrow of stream...
 
-        MissionPlan {
-            mission: mission,
-            stream: Box::new(stream),
-        }
+        Ok(MissionPlan {
+            upper_right: upper_right,
+            stream: Box::new(stream), // ...so it can be moved here
+        })
     }
 }
 
@@ -125,10 +123,10 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let stream = self.stream.as_mut();
-        let robot = robot().skip(spaces()).parse(stream);
+        let robot = skip_many(space()).and(robot()).parse(stream);
 
         match robot {
-            Ok((robot, _)) => Some(robot),
+            Ok(((_, robot), _)) => Some(robot),
             _ => None,
         }
     }
@@ -143,7 +141,6 @@ mod tests {
     use std::io::Cursor;
 
     use crate::geo::location::Point;
-    use crate::mission::Mission;
     use crate::robot::Command::{Forward as F, Left as L, Right as R};
 
     #[test]
@@ -184,7 +181,7 @@ mod tests {
 
     #[test]
     fn recognises_a_robot() {
-        let input = b"4  5  W\n\r  LRFFLFR"; // we don't discriminate against whitespace
+        let input = b"4  5  W\n\r  LRFFLFR\n"; // we don't discriminate against whitespace
         let (actual, _) = robot().parse(position::Stream::new(&input[..])).unwrap();
         let expected = (
             Robot {
@@ -198,20 +195,20 @@ mod tests {
     }
 
     #[test]
-    fn reads_basic_mission_plan() {
-        let mut input = Cursor::new("31 24\n");
+    fn reads_upper_right() {
+        let mut input = Cursor::new("  31 24\n");
 
-        let actual = MissionPlan::read(&mut input).mission;
-        let expected = Mission::new(Point { x: 31, y: 24 });
+        let actual = MissionPlan::read(&mut input).unwrap().upper_right;
+        let expected = Point { x: 31, y: 24 };
 
         assert_eq!(actual, expected)
     }
 
     #[test]
     fn reads_one_robot() {
-        let mut input = Cursor::new("31 24\n1 1 E\nLFLFLFLF");
+        let mut input = Cursor::new("  31 24\n   1 1 E\nLFLFLFLF\n");
 
-        let actual = MissionPlan::read(&mut input).next();
+        let actual = MissionPlan::read(&mut input).unwrap().next();
         let expected = Some((
             Robot {
                 position: Point { x: 1, y: 1 },
@@ -226,9 +223,9 @@ mod tests {
     #[test]
     fn collects_three_robots() {
         let mut input =
-            Cursor::new("31 24\n1 1 E\nLFLFLFLF\n\n3 2 N\nFRRFLLFFRRFLL\n\n0 3 W\nLLFFFLFLFL");
+            Cursor::new("31 24\n1 1 E\nLFLFLFLF\n\n3 2 N\nFRRFLLFFRRFLL\n\n0 3 W\nLLFFFLFLFL\n");
 
-        let plan = MissionPlan::read(&mut input);
+        let plan = MissionPlan::read(&mut input).unwrap();
         let actual: Vec<(Robot, Vec<Command>)> = plan.collect();
         let expected = vec![
             (
