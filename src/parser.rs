@@ -7,7 +7,7 @@ use combine::stream::buffered;
 use combine::stream::position;
 use combine::stream::read;
 use combine::stream::Stream;
-use combine::{many1, one_of, token, ParseResult, Parser};
+use combine::{many1, one_of, Parser};
 
 use crate::geo::location::Point;
 use crate::geo::orientation::Orientation;
@@ -95,18 +95,41 @@ impl<R> MissionPlan<'_, R>
 where
     R: Read,
 {
-    #[allow(dead_code)]
     pub fn read(input: &mut R) -> MissionPlan<R> {
+        // Should return Result
         let mut stream = buffered::Stream::new(position::Stream::new(read::Stream::new(input)), 1);
-        let mut upper_right = point().skip(spaces());
+        let mission;
 
-        match upper_right.parse_lazy(&mut stream) {
-            ParseResult::CommitOk(point) => MissionPlan {
-                mission: Mission::new(point),
-                stream: Box::new(stream),
-            },
-            ParseResult::CommitErr(err) => panic!("CommitErr! {}", err),
-            _ => panic!("WHAT?? {}"),
+        {
+            let mut upper_right = point().skip(spaces());
+            let point = upper_right.parse(&mut stream);
+
+            mission = match point {
+                Ok((point, _)) => Mission::new(point),
+                Err(err) => panic!("Err! {}", err),
+            };
+        } // drop upper_right and therefore release stream
+
+        MissionPlan {
+            mission: mission,
+            stream: Box::new(stream),
+        }
+    }
+}
+
+impl<R> Iterator for MissionPlan<'_, R>
+where
+    R: Read,
+{
+    type Item = (Robot, Vec<Command>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let stream = self.stream.as_mut();
+        let robot = robot().skip(spaces()).parse(stream);
+
+        match robot {
+            Ok((robot, _)) => Some(robot),
+            _ => None,
         }
     }
 }
@@ -176,11 +199,61 @@ mod tests {
 
     #[test]
     fn reads_basic_mission_plan() {
-        let mut input = Cursor::new(b"31 24\n");
+        let mut input = Cursor::new("31 24\n");
 
         let actual = MissionPlan::read(&mut input).mission;
         let expected = Mission::new(Point { x: 31, y: 24 });
 
         assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn reads_one_robot() {
+        let mut input = Cursor::new("31 24\n1 1 E\nLFLFLFLF");
+
+        let actual = MissionPlan::read(&mut input).next();
+        let expected = Some((
+            Robot {
+                position: Point { x: 1, y: 1 },
+                facing: Orientation::East,
+            },
+            vec![L, F, L, F, L, F, L, F],
+        ));
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn collects_three_robots() {
+        let mut input =
+            Cursor::new("31 24\n1 1 E\nLFLFLFLF\n\n3 2 N\nFRRFLLFFRRFLL\n\n0 3 W\nLLFFFLFLFL");
+
+        let plan = MissionPlan::read(&mut input);
+        let actual: Vec<(Robot, Vec<Command>)> = plan.collect();
+        let expected = vec![
+            (
+                Robot {
+                    position: Point { x: 1, y: 1 },
+                    facing: Orientation::East,
+                },
+                vec![L, F, L, F, L, F, L, F],
+            ),
+            (
+                Robot {
+                    position: Point { x: 3, y: 2 },
+                    facing: Orientation::North,
+                },
+                vec![F, R, R, F, L, L, F, F, R, R, F, L, L],
+            ),
+            (
+                Robot {
+                    position: Point { x: 0, y: 3 },
+                    facing: Orientation::West,
+                },
+                vec![L, L, F, F, F, L, F, L, F, L],
+            ),
+        ];
+
+        assert_eq!(actual, expected);
     }
 }
