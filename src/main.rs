@@ -7,9 +7,9 @@ use std::fmt;
 use std::io;
 
 use geo::orientation::Orientation::{self, East, North, South, West};
+use mission::Mission;
 use parser::MissionPlan;
 use robot::Robot;
-use mission::Mission;
 
 impl std::fmt::Display for Orientation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -35,7 +35,7 @@ fn main() {
 
     let mut plan = match MissionPlan::read(&mut input) {
         Ok(plan) => plan,
-        Err(msg) => return eprintln!("{}", msg)
+        Err(msg) => return eprintln!("{}", msg),
     };
 
     let mut mission = Mission::new(plan.upper_right);
@@ -46,7 +46,7 @@ fn main() {
                 Ok(robot) => println!("{}", robot),
                 Err(robot) => println!("{} LOST", robot),
             },
-            Err(err) => return eprintln!("{}", err)
+            Err(err) => return eprintln!("{}", err),
         }
     }
 }

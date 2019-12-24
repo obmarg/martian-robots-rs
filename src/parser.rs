@@ -128,8 +128,7 @@ where
         let stream = self.stream.as_mut();
         let robot = skip_many(space())
             .and(
-                robot().map(|r| Some(r))
-                .or(eof().map(|()| None)) // an expected end of input
+                robot().map(|r| Some(r)).or(eof().map(|()| None)), // an expected end of input
             )
             .easy_parse(stream);
 
@@ -137,7 +136,9 @@ where
             Ok(((_, None), _)) => None,
             Ok(((_, Some(robot)), _)) => Some(Ok(robot)),
             Err(error) => {
-                let human_error = error.map_token(|t| t as char).map_range(|r| std::str::from_utf8(r).unwrap());
+                let human_error = error
+                    .map_token(|t| t as char)
+                    .map_range(|r| std::str::from_utf8(r).unwrap());
                 Some(Err(format!("{}", human_error)))
             }
         }
@@ -221,15 +222,13 @@ mod tests {
         let mut input = Cursor::new("  31 24\n   1 1 E\nLFLFLFLF\n");
 
         let actual = MissionPlan::read(&mut input).unwrap().next();
-        let expected = Some(Ok(
-            (
-                Robot {
-                    position: Point { x: 1, y: 1 },
-                    facing: Orientation::East,
-                },
-                vec![L, F, L, F, L, F, L, F],
-            )
-        ));
+        let expected = Some(Ok((
+            Robot {
+                position: Point { x: 1, y: 1 },
+                facing: Orientation::East,
+            },
+            vec![L, F, L, F, L, F, L, F],
+        )));
 
         assert_eq!(actual, expected)
     }
