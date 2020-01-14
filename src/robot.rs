@@ -7,7 +7,7 @@ pub struct Robot {
     pub facing: orientation::Orientation,
 }
 
-#[derive(Clone, Copy)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum Command {
     Left,
     Right,

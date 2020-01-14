@@ -6,6 +6,7 @@ use crate::geo::orientation::Orientation;
 use crate::robot::Command;
 use crate::robot::Robot;
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct Mission {
     pub upper_right: Point,
     scents: HashMap<Point, HashSet<Orientation>>,
