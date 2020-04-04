@@ -1,3 +1,4 @@
+mod generator;
 mod geo;
 mod mission;
 mod parser;
