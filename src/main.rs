@@ -2,22 +2,16 @@ mod generator;
 mod geo;
 mod mission;
 mod parser;
+mod print;
 mod robot;
 
-use std::fmt;
 use std::io;
 
 use clap::{App, Arg, SubCommand};
 
 use generator::Generator;
-use geo::location::Point;
-use geo::orientation::Orientation::{self, East, North, South, West};
 use mission::Mission;
 use parser::MissionPlan;
-use robot::{
-    Command::{self, Forward, Left, Right},
-    Robot,
-};
 
 const SEED: u64 = 12345;
 
@@ -42,11 +36,11 @@ fn main() {
         }
 
         let gen = Generator::new(SEED);
-        println!("{}", gen.mission.upper_right);
 
+        println!("{}", gen.upper_right);
         match n {
-            Some(Ok(limit)) => print(gen.take(limit)),
-            None => print(gen),
+            Some(Ok(limit)) => print::robots(gen.take(limit)),
+            None => print::robots(gen),
             _ => panic!(),
         };
 
@@ -65,65 +59,8 @@ fn main() {
 
     for item in &mut plan {
         match item {
-            Ok((robot, commands)) => match mission.dispatch(robot, &commands) {
-                Ok(robot) => println!("{}", robot),
-                Err(robot) => println!("{} LOST", robot),
-            },
+            Ok((robot, commands)) => print::outcome(mission.dispatch(robot, &commands)),
             Err(err) => return eprintln!("{}", err),
         }
-    }
-}
-
-fn print<I>(stream: I)
-where
-    I: Iterator<Item = (Robot, Vec<Command>)>,
-{
-    for (robot, commands) in stream {
-        println!("{}", robot);
-        println!(
-            "{}\n",
-            commands
-                .iter()
-                .map(|c| format!("{}", c))
-                .collect::<Vec<String>>()
-                .join("")
-        );
-    }
-}
-
-// Display support
-
-impl std::fmt::Display for Orientation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let text = match self {
-            North => 'N',
-            East => 'E',
-            South => 'S',
-            West => 'W',
-        };
-        write!(f, "{}", text)
-    }
-}
-
-impl std::fmt::Display for Robot {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.position, self.facing)
-    }
-}
-
-impl std::fmt::Display for Point {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.x, self.y)
-    }
-}
-
-impl std::fmt::Display for Command {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let text = match self {
-            Left => 'L',
-            Right => 'R',
-            Forward => 'F',
-        };
-        write!(f, "{}", text)
     }
 }

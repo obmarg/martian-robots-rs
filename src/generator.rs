@@ -4,23 +4,22 @@ use rand::rngs::SmallRng;
 
 use crate::geo::location::Point;
 use crate::geo::orientation::Orientation;
-use crate::mission::Mission;
 use crate::robot::{Command, Robot};
 
 pub struct Generator {
-    pub mission: Mission,
+    pub upper_right: Point,
     prng: SmallRng, // a pseudo random number generator
 }
 
 impl Generator {
     pub fn new(seed: u64) -> Generator {
         let mut prng = SmallRng::seed_from_u64(seed);
-        let mission = Mission::new(Point {
+        let upper_right = Point {
             x: prng.gen_range(1, 51),
             y: prng.gen_range(1, 51),
-        });
+        };
 
-        Generator { mission, prng }
+        Generator { upper_right, prng }
     }
 }
 
@@ -32,8 +31,8 @@ impl Iterator for Generator {
 
         let robot = Robot {
             position: Point {
-                x: rng.gen_range(0, self.mission.upper_right.x),
-                y: rng.gen_range(0, self.mission.upper_right.y),
+                x: rng.gen_range(0, self.upper_right.x),
+                y: rng.gen_range(0, self.upper_right.y),
             },
             facing: rng.gen(),
         };
@@ -79,7 +78,7 @@ mod tests {
         let generator = Generator::new(12345);
         let expected = Point { x: 17, y: 43 };
 
-        assert_eq!(generator.mission.upper_right, expected);
+        assert_eq!(generator.upper_right, expected);
     }
 
     #[test]
