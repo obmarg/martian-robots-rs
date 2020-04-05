@@ -1,0 +1,8 @@
+---
+source: src/generator.rs
+expression: generator.upper_right
+---
+Point {
+    x: 17,
+    y: 43,
+}

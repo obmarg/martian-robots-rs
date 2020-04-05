@@ -70,55 +70,17 @@ impl Distribution<Command> for Standard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geo::orientation::Orientation::{North as N, South as S};
-    use crate::robot::Command::{Forward as F, Left as L, Right as R};
+    use insta::assert_debug_snapshot;
 
     #[test]
     fn creates_mission() {
         let generator = Generator::new(12345);
-        let expected = Point { x: 17, y: 43 };
-
-        assert_eq!(generator.upper_right, expected);
+        assert_debug_snapshot!(generator.upper_right);
     }
 
     #[test]
     fn generates_three_robots() {
         let generator = Generator::new(12345);
-        let expected = vec![
-            (
-                Robot {
-                    position: Point { x: 16, y: 39 },
-                    facing: S,
-                },
-                vec![
-                    R, L, R, L, R, L, R, L, F, F, R, L, R, R, F, R, L, F, L, R, L, F, R, F, R, R,
-                    F, L, F, L, L, F, L, F, F, L, F, R, L, L, F, R, R, R, L, F, R, L, R, R, R, L,
-                    F, R, L, L, F, R,
-                ],
-            ),
-            (
-                Robot {
-                    position: Point { x: 12, y: 32 },
-                    facing: S,
-                },
-                vec![
-                    L, R, F, F, F, R, L, R, L, L, R, L, R, L, F, F, R, F, L, F, L, F, L, R, R, F,
-                    F, F, R, F, F, F, L, F, R, L, F, F, L, L, F, R, L, R, F, F, F, F, R, R, R, R,
-                    R, F, F, L, R, R, L, R, F, R, L, R, F, R, F, L, R, L, L, R, L, R,
-                ],
-            ),
-            (
-                Robot {
-                    position: Point { x: 7, y: 42 },
-                    facing: N,
-                },
-                vec![
-                    L, L, R, L, L, R, R, R, R, L, F, F, F, R, L, R, L, F, L, F, L, R, F, R, L, R,
-                    L, L, R, F, R, R, R, R,
-                ],
-            ),
-        ];
-
-        assert_eq!(generator.take(3).collect::<Vec<_>>(), expected);
+        assert_debug_snapshot!(generator.take(3).collect::<Vec<_>>());
     }
 }
