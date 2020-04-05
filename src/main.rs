@@ -1,35 +1,58 @@
+mod generator;
 mod geo;
 mod mission;
 mod parser;
+mod print;
 mod robot;
 
-use std::fmt;
 use std::io;
 
-use geo::orientation::Orientation::{self, East, North, South, West};
+use structopt::StructOpt;
+
+use generator::Generator;
 use mission::Mission;
 use parser::MissionPlan;
-use robot::Robot;
 
-impl std::fmt::Display for Orientation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let text = match self {
-            North => 'N',
-            East => 'E',
-            South => 'S',
-            West => 'W',
-        };
-        write!(f, "{}", text)
-    }
+/// An example solution of the martian robots coding exercise, which can also be used to test implementations.
+/// Consumes input from STDIN.
+#[derive(StructOpt)]
+#[structopt(author = "Viktor Charypar <charypar@gmail.com>", version = "0.2")]
+struct Opts {
+    #[structopt(subcommand)]
+    cmd: Option<Command>,
 }
 
-impl std::fmt::Display for Robot {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.position.x, self.position.y, self.facing)
-    }
+#[derive(StructOpt)]
+enum Command {
+    /// Generates pseudo-random robot runs for testing
+    Generate(GenerateOpts),
+}
+
+#[derive(StructOpt)]
+struct GenerateOpts {
+    /// Only generate a given number of robots
+    #[structopt(short = "n")]
+    limit: Option<usize>,
+    /// Random seed to use
+    #[structopt(short, default_value = "12345")]
+    seed: u64,
 }
 
 fn main() {
+    let opts = Opts::from_args();
+
+    if let Some(Command::Generate(opts)) = opts.cmd {
+        let gen = Generator::new(opts.seed);
+
+        println!("{}", gen.upper_right);
+        match opts.limit {
+            Some(limit) => print::robots(gen.take(limit)),
+            None => print::robots(gen),
+        };
+
+        return;
+    }
+
     let stdin = io::stdin();
     let mut input = stdin.lock();
 
@@ -42,10 +65,7 @@ fn main() {
 
     for item in &mut plan {
         match item {
-            Ok((robot, commands)) => match mission.dispatch(robot, &commands) {
-                Ok(robot) => println!("{}", robot),
-                Err(robot) => println!("{} LOST", robot),
-            },
+            Ok((robot, commands)) => print::outcome(mission.dispatch(robot, &commands)),
             Err(err) => return eprintln!("{}", err),
         }
     }
