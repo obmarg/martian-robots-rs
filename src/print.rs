@@ -1,11 +1,8 @@
 use std::fmt;
 
 use crate::geo::location::Point;
-use crate::geo::orientation::Orientation::{self, East, North, South, West};
-use crate::robot::{
-  Command::{self, Forward, Left, Right},
-  Robot,
-};
+use crate::geo::orientation::Orientation;
+use crate::robot::{Command, Robot};
 
 pub fn robots<I>(stream: I)
 where
@@ -36,10 +33,10 @@ pub fn outcome(result: Result<Robot, Robot>) {
 impl std::fmt::Display for Orientation {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let text = match self {
-      North => 'N',
-      East => 'E',
-      South => 'S',
-      West => 'W',
+      Orientation::North => 'N',
+      Orientation::East => 'E',
+      Orientation::South => 'S',
+      Orientation::West => 'W',
     };
     write!(f, "{}", text)
   }
@@ -60,9 +57,9 @@ impl std::fmt::Display for Point {
 impl std::fmt::Display for Command {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let text = match self {
-      Left => 'L',
-      Right => 'R',
-      Forward => 'F',
+      Command::Left => 'L',
+      Command::Right => 'R',
+      Command::Forward => 'F',
     };
     write!(f, "{}", text)
   }
