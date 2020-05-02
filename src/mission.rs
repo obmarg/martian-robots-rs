@@ -6,6 +6,12 @@ use crate::geo::orientation::Orientation;
 use crate::robot::Command;
 use crate::robot::Robot;
 
+#[derive(Debug, PartialEq)]
+pub enum Outcome {
+    Success(Robot),
+    Lost(Robot),
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct Mission {
     pub upper_right: Point,
@@ -22,8 +28,8 @@ impl Mission {
         }
     }
 
-    pub fn dispatch(&mut self, robot: Robot, commands: &[Command]) -> Result<Robot, Robot> {
-        commands.iter().try_fold(robot, |r, c| {
+    pub fn dispatch(&mut self, robot: Robot, commands: &[Command]) -> Outcome {
+        let outcome = commands.iter().try_fold(robot, |r, c| {
             let robot = r.advance(*c);
 
             if (ORIGIN.x..=self.upper_right.x).contains(&robot.position.x)
@@ -46,13 +52,18 @@ impl Mission {
                     Err(r)
                 }
             }
-        })
+        });
+
+        match outcome {
+            Ok(robot) => Outcome::Success(robot),
+            Err(robot) => Outcome::Lost(robot),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Mission;
+    use super::*;
     use crate::geo::location::Point;
     use crate::geo::orientation::Orientation::{East, North, South, West};
     use crate::robot::Command::{Forward as F, Left as L, Right as R};
@@ -66,7 +77,7 @@ mod tests {
             facing: East,
         };
 
-        let expected = Ok(Robot {
+        let expected = Outcome::Success(Robot {
             position: Point { x: 1, y: 1 },
             facing: East,
         });
@@ -83,7 +94,7 @@ mod tests {
             facing: North,
         };
 
-        let expected = Err(Robot {
+        let expected = Outcome::Lost(Robot {
             position: Point { x: 3, y: 3 },
             facing: North,
         });
@@ -100,7 +111,7 @@ mod tests {
             facing: North,
         };
 
-        let expected = Err(Robot {
+        let expected = Outcome::Lost(Robot {
             position: Point { x: 3, y: 3 },
             facing: North,
         });
@@ -113,7 +124,7 @@ mod tests {
             facing: West,
         };
 
-        let expected = Ok(Robot {
+        let expected = Outcome::Success(Robot {
             position: Point { x: 2, y: 3 },
             facing: South,
         });

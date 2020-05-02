@@ -11,6 +11,7 @@ use combine::{eof, many1, one_of, optional, skip_many, EasyParser, Parser};
 
 use crate::geo::location::Point;
 use crate::geo::orientation::Orientation;
+use crate::mission::Outcome;
 use crate::robot::{Command, Robot};
 
 pub struct MissionPlan<'a, R>
@@ -99,7 +100,7 @@ where
 }
 
 // Parses an outcome of a robot run, e.g. '3 3 N', or '5 2 E LOST'
-fn outcome<Input>() -> impl Parser<Input, Output = Result<Robot, Robot>>
+fn outcome<Input>() -> impl Parser<Input, Output = Outcome>
 where
     Input: Stream<Token = u8, Range = &'static [u8]>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
@@ -110,11 +111,11 @@ where
         .skip(spaces())
         .and(optional(bytes(&b"LOST"[..])).skip(spaces()))
         .map(|((position, orientation), lost)| match lost {
-            None => Ok(Robot {
+            None => Outcome::Success(Robot {
                 position,
                 facing: orientation,
             }),
-            Some(_) => Err(Robot {
+            Some(_) => Outcome::Lost(Robot {
                 position,
                 facing: orientation,
             }),
@@ -194,7 +195,7 @@ impl<R> Iterator for MissionOutcomes<'_, R>
 where
     R: Read,
 {
-    type Item = Result<Result<Robot, Robot>, String>;
+    type Item = Result<Outcome, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let stream = self.stream.as_mut();
@@ -286,7 +287,7 @@ mod tests {
     fn recognises_a_positive_outcome() {
         let input = b"4  5  W\n";
         let (actual, _) = outcome().parse(position::Stream::new(&input[..])).unwrap();
-        let expected = Ok(Robot {
+        let expected = Outcome::Success(Robot {
             position: Point { x: 4, y: 5 },
             facing: Orientation::West,
         });
@@ -298,7 +299,7 @@ mod tests {
     fn recognises_a_negative_outcome() {
         let input = b"4  5  E   LOST\n";
         let outcome = outcome().parse(position::Stream::new(&input[..]));
-        let expected = Err(Robot {
+        let expected = Outcome::Lost(Robot {
             position: Point { x: 4, y: 5 },
             facing: Orientation::East,
         });
@@ -374,7 +375,7 @@ mod tests {
         let mut input = Cursor::new("  22 11 E LOST\n");
 
         let actual = MissionOutcomes::read(&mut input).next();
-        let expected = Some(Ok(Err(Robot {
+        let expected = Some(Ok(Outcome::Lost(Robot {
             position: Point { x: 22, y: 11 },
             facing: Orientation::East,
         })));
@@ -388,15 +389,15 @@ mod tests {
 
         let actual = MissionOutcomes::read(&mut input).collect::<Vec<_>>();
         let expected = vec![
-            Ok(Ok(Robot {
+            Ok(Outcome::Success(Robot {
                 position: Point { x: 1, y: 2 },
                 facing: Orientation::West,
             })),
-            Ok(Err(Robot {
+            Ok(Outcome::Lost(Robot {
                 position: Point { x: 3, y: 3 },
                 facing: Orientation::North,
             })),
-            Ok(Ok(Robot {
+            Ok(Outcome::Success(Robot {
                 position: Point { x: 5, y: 2 },
                 facing: Orientation::South,
             })),

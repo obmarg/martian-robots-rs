@@ -11,7 +11,7 @@ use structopt::StructOpt;
 
 use generator::Generator;
 use mission::Mission;
-use parser::MissionPlan;
+use parser::{MissionOutcomes, MissionPlan};
 
 /// An example solution of the martian robots coding exercise, which can also be used to test implementations.
 /// Consumes input from STDIN.
@@ -26,6 +26,7 @@ struct Opts {
 enum Command {
     /// Generates pseudo-random robot runs for testing
     Generate(GenerateOpts),
+    Verify(VerifyOpts),
 }
 
 #[derive(StructOpt)]
@@ -38,35 +39,64 @@ struct GenerateOpts {
     seed: u64,
 }
 
+#[derive(StructOpt)]
+struct VerifyOpts {
+    /// Random seed to use
+    #[structopt(short, default_value = "12345")]
+    seed: u64,
+}
+
 fn main() {
     let opts = Opts::from_args();
 
-    if let Some(Command::Generate(opts)) = opts.cmd {
-        let gen = Generator::new(opts.seed);
+    match opts.cmd {
+        Some(Command::Generate(opts)) => {
+            let gen = Generator::new(opts.seed);
 
-        println!("{}", gen.upper_right);
-        match opts.limit {
-            Some(limit) => print::robots(gen.take(limit)),
-            None => print::robots(gen),
-        };
+            println!("{}", gen.upper_right);
+            match opts.limit {
+                Some(limit) => print::robots(gen.take(limit)),
+                None => print::robots(gen),
+            };
 
-        return;
-    }
+            return;
+        }
+        Some(Command::Verify(opts)) => {
+            let stdin = io::stdin();
+            let mut input = stdin.lock();
+            let actual_outcomes = MissionOutcomes::read(&mut input);
 
-    let stdin = io::stdin();
-    let mut input = stdin.lock();
+            let gen = Generator::new(opts.seed);
+            let mut mission = Mission::new(gen.upper_right);
+            let expected_outcomes =
+                gen.map(|(robot, commands)| mission.dispatch(robot, commands.as_ref()));
 
-    let mut plan = match MissionPlan::read(&mut input) {
-        Ok(plan) => plan,
-        Err(msg) => return eprintln!("{}", msg),
-    };
+            for (expected, actual) in expected_outcomes.zip(actual_outcomes) {
+                let actual = match actual {
+                    Ok(outcome) => outcome,
+                    Err(msg) => return eprintln!("{}", msg),
+                };
 
-    let mut mission = Mission::new(plan.upper_right);
+                print::verify(expected, actual);
+            }
+        }
+        _ => {
+            let stdin = io::stdin();
+            let mut input = stdin.lock();
 
-    for item in &mut plan {
-        match item {
-            Ok((robot, commands)) => print::outcome(mission.dispatch(robot, &commands)),
-            Err(err) => return eprintln!("{}", err),
+            let mut plan = match MissionPlan::read(&mut input) {
+                Ok(plan) => plan,
+                Err(msg) => return eprintln!("{}", msg),
+            };
+
+            let mut mission = Mission::new(plan.upper_right);
+
+            for item in &mut plan {
+                match item {
+                    Ok((robot, commands)) => print::outcome(mission.dispatch(robot, &commands)),
+                    Err(err) => return eprintln!("{}", err),
+                }
+            }
         }
     }
 }
