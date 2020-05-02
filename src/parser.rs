@@ -2,12 +2,12 @@ use std::io::Read;
 use std::str;
 
 use combine::error::ParseError;
-use combine::parser::byte::{digit, space, spaces};
+use combine::parser::byte::{bytes, digit, space, spaces};
 use combine::stream::buffered;
 use combine::stream::position;
 use combine::stream::read;
 use combine::stream::Stream;
-use combine::{eof, many1, one_of, skip_many, EasyParser, Parser};
+use combine::{eof, many1, one_of, optional, skip_many, EasyParser, Parser};
 
 use crate::geo::location::Point;
 use crate::geo::orientation::Orientation;
@@ -18,6 +18,14 @@ where
     R: Read,
 {
     pub upper_right: Point,
+    stream:
+        Box<buffered::Stream<position::Stream<read::Stream<&'a mut R>, position::IndexPositioner>>>,
+}
+
+pub struct MissionOutcomes<'a, R>
+where
+    R: Read,
+{
     stream:
         Box<buffered::Stream<position::Stream<read::Stream<&'a mut R>, position::IndexPositioner>>>,
 }
@@ -90,6 +98,29 @@ where
         })
 }
 
+// Parses an outcome of a robot run, e.g. '3 3 N', or '5 2 E LOST'
+fn outcome<Input>() -> impl Parser<Input, Output = Result<Robot, Robot>>
+where
+    Input: Stream<Token = u8, Range = &'static [u8]>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    point()
+        .skip(spaces())
+        .and(orientation())
+        .skip(spaces())
+        .and(optional(bytes(&b"LOST"[..])).skip(spaces()))
+        .map(|((position, orientation), lost)| match lost {
+            None => Ok(Robot {
+                position,
+                facing: orientation,
+            }),
+            Some(_) => Err(Robot {
+                position,
+                facing: orientation,
+            }),
+        })
+}
+
 impl<R> MissionPlan<'_, R>
 where
     R: Read,
@@ -135,6 +166,50 @@ where
         match robot {
             Ok(((_, None), _)) => None,
             Ok(((_, Some(robot)), _)) => Some(Ok(robot)),
+            Err(error) => {
+                let human_error = error
+                    .map_token(|t| t as char)
+                    .map_range(|r| std::str::from_utf8(r).unwrap());
+                Some(Err(format!("{}", human_error)))
+            }
+        }
+    }
+}
+
+impl<R> MissionOutcomes<'_, R>
+where
+    R: Read,
+{
+    pub fn read(input: &mut R) -> MissionOutcomes<R> {
+        // Should return Result
+        let stream = buffered::Stream::new(position::Stream::new(read::Stream::new(input)), 1);
+
+        MissionOutcomes {
+            stream: Box::new(stream),
+        }
+    }
+}
+
+impl<R> Iterator for MissionOutcomes<'_, R>
+where
+    R: Read,
+{
+    type Item = Result<Result<Robot, Robot>, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let stream = self.stream.as_mut();
+        let outcome = skip_many(space())
+            .and(
+                outcome().map(|r| Some(r)).or(eof().map(|()| None)), // expected EOF
+            )
+            .easy_parse(stream);
+
+        match outcome {
+            // End of stream
+            Ok(((_, None), _)) => None,
+            // Successfully parsed outcome
+            Ok(((_, Some(outcome)), _)) => Some(Ok(outcome)),
+            // Parse error
             Err(error) => {
                 let human_error = error
                     .map_token(|t| t as char)
@@ -208,6 +283,33 @@ mod tests {
     }
 
     #[test]
+    fn recognises_a_positive_outcome() {
+        let input = b"4  5  W\n";
+        let (actual, _) = outcome().parse(position::Stream::new(&input[..])).unwrap();
+        let expected = Ok(Robot {
+            position: Point { x: 4, y: 5 },
+            facing: Orientation::West,
+        });
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn recognises_a_negative_outcome() {
+        let input = b"4  5  E   LOST\n";
+        let outcome = outcome().parse(position::Stream::new(&input[..]));
+        let expected = Err(Robot {
+            position: Point { x: 4, y: 5 },
+            facing: Orientation::East,
+        });
+
+        match outcome {
+            Ok((actual, _)) => assert_eq!(actual, expected),
+            Err(msg) => panic!("{:?}", msg),
+        }
+    }
+
+    #[test]
     fn reads_upper_right() {
         let mut input = Cursor::new("  31 24\n");
 
@@ -239,7 +341,7 @@ mod tests {
             Cursor::new("31 24\n1 1 E\nLFLFLFLF\n\n3 2 N\nFRRFLLFFRRFLL\n\n0 3 W\nLLFFFLFLFL\n");
 
         let plan = MissionPlan::read(&mut input).unwrap();
-        let actual: Vec<Result<(Robot, Vec<Command>), String>> = plan.collect();
+        let actual = plan.collect::<Vec<_>>();
         let expected = vec![
             Ok((
                 Robot {
@@ -265,5 +367,41 @@ mod tests {
         ];
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn reads_one_outcome() {
+        let mut input = Cursor::new("  22 11 E LOST\n");
+
+        let actual = MissionOutcomes::read(&mut input).next();
+        let expected = Some(Ok(Err(Robot {
+            position: Point { x: 22, y: 11 },
+            facing: Orientation::East,
+        })));
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn reads_three_outcomes() {
+        let mut input = Cursor::new("  1 2 W\n3 3 N LOST\n5 2 S");
+
+        let actual = MissionOutcomes::read(&mut input).collect::<Vec<_>>();
+        let expected = vec![
+            Ok(Ok(Robot {
+                position: Point { x: 1, y: 2 },
+                facing: Orientation::West,
+            })),
+            Ok(Err(Robot {
+                position: Point { x: 3, y: 3 },
+                facing: Orientation::North,
+            })),
+            Ok(Ok(Robot {
+                position: Point { x: 5, y: 2 },
+                facing: Orientation::South,
+            })),
+        ];
+
+        assert_eq!(actual, expected)
     }
 }
