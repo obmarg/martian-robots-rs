@@ -10,7 +10,6 @@ use std::io;
 use structopt::StructOpt;
 
 use generator::Generator;
-use mission::Mission;
 use parser::{MissionOutcomes, MissionPlan};
 
 /// An example solution of the martian robots coding exercise, which can also be used to test implementations.
@@ -49,54 +48,32 @@ struct VerifyOpts {
 fn main() {
     let opts = Opts::from_args();
 
+    let stdin = io::stdin();
+    let mut input = stdin.lock();
+
     match opts.cmd {
         Some(Command::Generate(opts)) => {
             let gen = Generator::new(opts.seed);
 
-            println!("{}", gen.upper_right);
             match opts.limit {
-                Some(limit) => print::robots(gen.take(limit)),
-                None => print::robots(gen),
+                Some(limit) => print::plan(gen.upper_right, gen.take(limit)),
+                None => print::plan(gen.upper_right, gen),
             };
-
-            return;
         }
         Some(Command::Verify(opts)) => {
-            let stdin = io::stdin();
-            let mut input = stdin.lock();
             let actual_outcomes = MissionOutcomes::read(&mut input);
+            let expected_outcomes = Generator::new(opts.seed).mission();
 
-            let gen = Generator::new(opts.seed);
-            let mut mission = Mission::new(gen.upper_right);
-            let expected_outcomes =
-                gen.map(|(robot, commands)| mission.dispatch(robot, commands.as_ref()));
-
-            for (expected, actual) in expected_outcomes.zip(actual_outcomes) {
-                let actual = match actual {
-                    Ok(outcome) => outcome,
-                    Err(msg) => return eprintln!("{}", msg),
-                };
-
-                print::verify(expected, actual);
-            }
+            print::checks(expected_outcomes.zip(actual_outcomes));
         }
-        _ => {
-            let stdin = io::stdin();
-            let mut input = stdin.lock();
-
-            let mut plan = match MissionPlan::read(&mut input) {
-                Ok(plan) => plan,
-                Err(msg) => return eprintln!("{}", msg),
-            };
-
-            let mut mission = Mission::new(plan.upper_right);
-
-            for item in &mut plan {
-                match item {
-                    Ok((robot, commands)) => print::outcome(mission.dispatch(robot, &commands)),
-                    Err(err) => return eprintln!("{}", err),
+        None => {
+            match MissionPlan::read(&mut input) {
+                Ok(plan) => {
+                    let mission = plan.mission();
+                    print::outcomes(mission)
                 }
-            }
+                Err(msg) => eprintln!("{}", msg),
+            };
         }
     }
 }

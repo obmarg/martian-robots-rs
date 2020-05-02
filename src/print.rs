@@ -6,10 +6,11 @@ use crate::geo::orientation::Orientation;
 use crate::mission::Outcome;
 use crate::robot::{Command, Robot};
 
-pub fn robots<I>(stream: I)
+pub fn plan<I>(upper_right: Point, stream: I)
 where
     I: Iterator<Item = (Robot, Vec<Command>)>,
 {
+    println!("{}", upper_right);
     for (robot, commands) in stream {
         println!("{}", robot);
         println!(
@@ -23,18 +24,35 @@ where
     }
 }
 
-pub fn outcome(outcome: Outcome) {
-    println!("{}", outcome);
+pub fn checks<I>(stream: I)
+where
+    I: Iterator<Item = (Outcome, Result<Outcome, String>)>,
+{
+    for (expected, actual) in stream {
+        if let Err(msg) = actual {
+            return eprintln!("{}", msg);
+        }
+
+        let actual = actual.unwrap();
+
+        if actual == expected {
+            println!("{}", format!("✓ {}", actual).green());
+        } else {
+            let err = format!("⨯ Expected: {}, got: {}", expected, actual).red();
+            println!("{}", err);
+        }
+    }
 }
 
-pub fn verify(expected: Outcome, actual: Outcome) {
-    if actual == expected {
-        println!("{}", format!("✓ {}", actual).green());
-    } else {
-        println!(
-            "{}",
-            format!("⨯ Expected: {}, got: {}", expected, actual).red()
-        );
+pub fn outcomes<I>(stream: I)
+where
+    I: Iterator<Item = Result<Outcome, String>>,
+{
+    for item in stream {
+        match item {
+            Ok(outcome) => println!("{}", outcome),
+            Err(msg) => return eprintln!("{}", msg),
+        }
     }
 }
 

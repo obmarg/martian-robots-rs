@@ -12,18 +12,25 @@ pub enum Outcome {
     Lost(Robot),
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct Mission {
+pub struct Mission<I, X>
+where
+    I: Iterator<Item = X>,
+{
     pub upper_right: Point,
+    source: I,
     scents: HashMap<Point, HashSet<Orientation>>,
 }
 
 const ORIGIN: Point = Point { x: 0, y: 0 };
 
-impl Mission {
-    pub fn new(upper_right: Point) -> Mission {
+impl<I, SourceItem> Mission<I, SourceItem>
+where
+    I: Iterator<Item = SourceItem>,
+{
+    pub fn new(upper_right: Point, source: I) -> Mission<I, SourceItem> {
         Mission {
             upper_right: upper_right,
+            source: source,
             scents: HashMap::new(),
         }
     }
@@ -61,6 +68,34 @@ impl Mission {
     }
 }
 
+// Running a mission with a reliable source
+impl<I> std::iter::Iterator for Mission<I, (Robot, Vec<Command>)>
+where
+    I: Iterator<Item = (Robot, Vec<Command>)>,
+{
+    type Item = Outcome;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.source
+            .next()
+            .map(|(robot, commands)| self.dispatch(robot, commands.as_ref()))
+    }
+}
+
+// Running a mission with a unreliable source
+impl<I> std::iter::Iterator for Mission<I, Result<(Robot, Vec<Command>), String>>
+where
+    I: Iterator<Item = Result<(Robot, Vec<Command>), String>>,
+{
+    type Item = Result<Outcome, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.source
+            .next()
+            .map(|item| item.map(|(robot, commands)| self.dispatch(robot, commands.as_ref())))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,7 +106,8 @@ mod tests {
 
     #[test]
     fn simple_robot() {
-        let mut mission = Mission::new(Point { x: 5, y: 3 });
+        let mut mission: Mission<_, (Robot, Vec<Command>)> =
+            Mission::new(Point { x: 5, y: 3 }, Vec::new().into_iter());
         let robot = Robot {
             position: Point { x: 1, y: 1 },
             facing: East,
@@ -88,7 +124,8 @@ mod tests {
 
     #[test]
     fn robot_is_lost() {
-        let mut mission = Mission::new(Point { x: 5, y: 3 });
+        let mut mission: Mission<_, (Robot, Vec<Command>)> =
+            Mission::new(Point { x: 5, y: 3 }, Vec::new().into_iter());
         let robot = Robot {
             position: Point { x: 3, y: 2 },
             facing: North,
@@ -105,7 +142,8 @@ mod tests {
 
     #[test]
     fn robots_are_clever() {
-        let mut mission = Mission::new(Point { x: 5, y: 3 });
+        let mut mission: Mission<_, (Robot, Vec<Command>)> =
+            Mission::new(Point { x: 5, y: 3 }, Vec::new().into_iter());
         let robot = Robot {
             position: Point { x: 3, y: 2 },
             facing: North,
