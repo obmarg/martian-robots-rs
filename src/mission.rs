@@ -14,7 +14,7 @@ pub enum Outcome {
 
 pub struct Mission<I, X>
 where
-    I: Iterator<Item = X>,
+    I: IntoIterator<Item = X>,
 {
     pub upper_right: Point,
     source: I,
@@ -25,11 +25,11 @@ const ORIGIN: Point = Point { x: 0, y: 0 };
 
 impl<I, SourceItem> Mission<I, SourceItem>
 where
-    I: Iterator<Item = SourceItem>,
+    I: IntoIterator<Item = SourceItem>,
 {
     pub fn new(upper_right: Point, source: I) -> Mission<I, SourceItem> {
         Mission {
-            upper_right: upper_right,
+            upper_right,
             source: source,
             scents: HashMap::new(),
         }
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn simple_robot() {
         let mut mission: Mission<_, (Robot, Vec<Command>)> =
-            Mission::new(Point { x: 5, y: 3 }, Vec::new().into_iter());
+            Mission::new(Point { x: 5, y: 3 }, Vec::new());
         let robot = Robot {
             position: Point { x: 1, y: 1 },
             facing: East,
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn robot_is_lost() {
         let mut mission: Mission<_, (Robot, Vec<Command>)> =
-            Mission::new(Point { x: 5, y: 3 }, Vec::new().into_iter());
+            Mission::new(Point { x: 5, y: 3 }, Vec::new());
         let robot = Robot {
             position: Point { x: 3, y: 2 },
             facing: North,
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn robots_are_clever() {
         let mut mission: Mission<_, (Robot, Vec<Command>)> =
-            Mission::new(Point { x: 5, y: 3 }, Vec::new().into_iter());
+            Mission::new(Point { x: 5, y: 3 }, Vec::new());
         let robot = Robot {
             position: Point { x: 3, y: 2 },
             facing: North,
