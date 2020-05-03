@@ -1,4 +1,5 @@
 use colored::Colorize;
+use itertools::Itertools;
 use std::fmt;
 
 use crate::geo::location::Point;
@@ -12,15 +13,7 @@ where
 {
     println!("{}", upper_right);
     for (robot, commands) in stream {
-        println!("{}", robot);
-        println!(
-            "{}\n",
-            commands
-                .iter()
-                .map(|c| format!("{}", c))
-                .collect::<Vec<String>>()
-                .join("")
-        );
+        println!("{}\n{}\n", robot, commands.iter().format(""));
     }
 }
 
