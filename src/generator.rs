@@ -4,7 +4,6 @@ use rand::rngs::SmallRng;
 
 use crate::geo::location::Point;
 use crate::geo::orientation::Orientation;
-use crate::mission::Mission;
 use crate::robot::{Command, Robot};
 
 pub struct Generator {
@@ -21,10 +20,6 @@ impl Generator {
         };
 
         Generator { upper_right, prng }
-    }
-
-    pub fn mission(self) -> Mission<Self, (Robot, Vec<Command>)> {
-        Mission::new(self.upper_right, self)
     }
 }
 

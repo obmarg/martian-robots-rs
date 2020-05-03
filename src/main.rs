@@ -10,6 +10,7 @@ use std::io;
 use structopt::StructOpt;
 
 use generator::Generator;
+use mission::Mission;
 use parser::{MissionOutcomes, MissionPlan};
 
 /// An example solution of the martian robots coding exercise, which can also be used to test implementations.
@@ -62,16 +63,13 @@ fn main() {
         }
         Some(Command::Verify(opts)) => {
             let actual_outcomes = MissionOutcomes::read(&mut input);
-            let expected_outcomes = Generator::new(opts.seed).mission();
+            let generator = Generator::new(opts.seed);
 
-            print::checks(expected_outcomes.zip(actual_outcomes));
+            print::checks(Mission::run(generator.upper_right, generator).zip(actual_outcomes));
         }
         None => {
             match MissionPlan::read(&mut input) {
-                Ok(plan) => {
-                    let mission = plan.mission();
-                    print::outcomes(mission)
-                }
+                Ok(plan) => print::outcomes(Mission::run(plan.upper_right, plan)),
                 Err(msg) => eprintln!("{}", msg),
             };
         }

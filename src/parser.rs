@@ -11,14 +11,14 @@ use combine::{eof, many1, one_of, optional, skip_many, EasyParser, Parser};
 
 use crate::geo::location::Point;
 use crate::geo::orientation::Orientation;
-use crate::mission::{Mission, Outcome};
+use crate::mission::Outcome;
 use crate::robot::{Command, Robot};
 
 pub struct MissionPlan<'a, R>
 where
     R: Read,
 {
-    upper_right: Point,
+    pub upper_right: Point,
     stream:
         Box<buffered::Stream<position::Stream<read::Stream<&'a mut R>, position::IndexPositioner>>>,
 }
@@ -147,10 +147,6 @@ where
             upper_right: upper_right,
             stream: Box::new(stream), // ...so it can be moved here
         })
-    }
-
-    pub fn mission(self) -> Mission<Self, Result<(Robot, Vec<Command>), String>> {
-        Mission::new(self.upper_right, self)
     }
 }
 

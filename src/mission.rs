@@ -12,27 +12,23 @@ pub enum Outcome {
     Lost(Robot),
 }
 
-pub struct Mission<I, X>
-where
-    I: IntoIterator<Item = X>,
-{
+pub struct Mission {
     pub upper_right: Point,
-    source: I,
     scents: HashMap<Point, HashSet<Orientation>>,
 }
 
 const ORIGIN: Point = Point { x: 0, y: 0 };
 
-impl<I, SourceItem> Mission<I, SourceItem>
-where
-    I: IntoIterator<Item = SourceItem>,
-{
-    pub fn new(upper_right: Point, source: I) -> Mission<I, SourceItem> {
-        Mission {
+impl Mission {
+    pub fn run<S: SourceItem>(
+        upper_right: Point,
+        source: impl IntoIterator<Item = S>,
+    ) -> impl Iterator<Item = S::Output> {
+        let mut mission = Mission {
             upper_right,
-            source: source,
             scents: HashMap::new(),
-        }
+        };
+        source.into_iter().map(move |d| d.dispatch(&mut mission))
     }
 
     pub fn dispatch(&mut self, robot: Robot, commands: &[Command]) -> Outcome {
@@ -68,31 +64,26 @@ where
     }
 }
 
-// Running a mission with a reliable source
-impl<I> std::iter::Iterator for Mission<I, (Robot, Vec<Command>)>
-where
-    I: Iterator<Item = (Robot, Vec<Command>)>,
-{
-    type Item = Outcome;
+pub trait SourceItem: Sized {
+    type Output;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.source
-            .next()
-            .map(|(robot, commands)| self.dispatch(robot, commands.as_ref()))
+    fn dispatch(self, mission: &mut Mission) -> Self::Output;
+}
+
+impl SourceItem for (Robot, Vec<Command>) {
+    type Output = Outcome;
+
+    fn dispatch(self, mission: &mut Mission) -> Self::Output {
+        let (robot, commands) = self;
+        mission.dispatch(robot, commands.as_ref())
     }
 }
 
-// Running a mission with a unreliable source
-impl<I> std::iter::Iterator for Mission<I, Result<(Robot, Vec<Command>), String>>
-where
-    I: Iterator<Item = Result<(Robot, Vec<Command>), String>>,
-{
-    type Item = Result<Outcome, String>;
+impl SourceItem for Result<(Robot, Vec<Command>), String> {
+    type Output = Result<Outcome, String>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.source
-            .next()
-            .map(|item| item.map(|(robot, commands)| self.dispatch(robot, commands.as_ref())))
+    fn dispatch(self, mission: &mut Mission) -> Self::Output {
+        self.map(|(robot, commands)| mission.dispatch(robot, commands.as_ref()))
     }
 }
 
@@ -106,8 +97,6 @@ mod tests {
 
     #[test]
     fn simple_robot() {
-        let mut mission: Mission<_, (Robot, Vec<Command>)> =
-            Mission::new(Point { x: 5, y: 3 }, Vec::new());
         let robot = Robot {
             position: Point { x: 1, y: 1 },
             facing: East,
@@ -117,15 +106,18 @@ mod tests {
             position: Point { x: 1, y: 1 },
             facing: East,
         });
-        let actual = mission.dispatch(robot, &[R, F, R, F, R, F, R, F]);
 
-        assert_eq!(actual, expected);
+        let actual: Vec<_> = Mission::run(
+            Point { x: 5, y: 3 },
+            vec![(robot, vec![R, F, R, F, R, F, R, F])],
+        )
+        .collect();
+
+        assert_eq!(actual, vec![expected]);
     }
 
     #[test]
     fn robot_is_lost() {
-        let mut mission: Mission<_, (Robot, Vec<Command>)> =
-            Mission::new(Point { x: 5, y: 3 }, Vec::new());
         let robot = Robot {
             position: Point { x: 3, y: 2 },
             facing: North,
@@ -135,38 +127,47 @@ mod tests {
             position: Point { x: 3, y: 3 },
             facing: North,
         });
-        let actual = mission.dispatch(robot, &[F, R, R, F, L, L, F, F, R, R, F, L, L]);
 
-        assert_eq!(actual, expected);
+        let actual: Vec<_> = Mission::run(
+            Point { x: 5, y: 3 },
+            vec![(robot, vec![F, R, R, F, L, L, F, F, R, R, F, L, L])],
+        )
+        .collect();
+
+        assert_eq!(actual, vec![expected]);
     }
 
     #[test]
     fn robots_are_clever() {
-        let mut mission: Mission<_, (Robot, Vec<Command>)> =
-            Mission::new(Point { x: 5, y: 3 }, Vec::new());
-        let robot = Robot {
-            position: Point { x: 3, y: 2 },
-            facing: North,
-        };
+        let mission = vec![
+            (
+                Robot {
+                    position: Point { x: 3, y: 2 },
+                    facing: North,
+                },
+                vec![F, R, R, F, L, L, F, F, R, R, F, L, L],
+            ),
+            (
+                Robot {
+                    position: Point { x: 0, y: 3 },
+                    facing: West,
+                },
+                vec![L, L, F, F, F, L, F, L, F, L],
+            ),
+        ];
 
-        let expected = Outcome::Lost(Robot {
-            position: Point { x: 3, y: 3 },
-            facing: North,
-        });
-        let actual = mission.dispatch(robot, &[F, R, R, F, L, L, F, F, R, R, F, L, L]);
+        let expected = vec![
+            Outcome::Lost(Robot {
+                position: Point { x: 3, y: 3 },
+                facing: North,
+            }),
+            Outcome::Success(Robot {
+                position: Point { x: 2, y: 3 },
+                facing: South,
+            }),
+        ];
 
-        assert_eq!(actual, expected);
-
-        let robot = Robot {
-            position: Point { x: 0, y: 3 },
-            facing: West,
-        };
-
-        let expected = Outcome::Success(Robot {
-            position: Point { x: 2, y: 3 },
-            facing: South,
-        });
-        let actual = mission.dispatch(robot, &[L, L, F, F, F, L, F, L, F, L]);
+        let actual: Vec<_> = Mission::run(Point { x: 5, y: 3 }, mission).collect();
 
         assert_eq!(actual, expected);
     }
